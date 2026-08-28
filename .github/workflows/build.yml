@@ -1,0 +1,38 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Release
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Restore and build
+        run: >-
+          msbuild IFSExplorer.sln
+          /restore
+          /target:Rebuild
+          /property:Configuration=Release
+          /property:Platform="Any CPU"
+          /maxCpuCount
+          /verbosity:minimal
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: IFSExplorer-${{ github.sha }}
+          path: IFSExplorer/bin/Release/
+          if-no-files-found: error

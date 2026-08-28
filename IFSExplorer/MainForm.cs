@@ -198,10 +198,8 @@ namespace IFSExplorer
 
             if (_currentFileIndex != fileIndex) {
                 _currentFileIndex = fileIndex;
-                var rawBytes = IFSUtils.DecompressLSZZ(fileIndex.Read());
-
                 try {
-                    _currentRaw = IFSUtils.DecodeRaw(rawBytes);
+                    _currentRaw = IFSUtils.DecodeFile(fileIndex);
                 } catch (Exception e) {
                     _currentRaw = null;
                     labelStatus.Text = string.Format("Couldn't decode raw #{0}: {1}", fileIndex.EntryNumber, e);
@@ -213,7 +211,10 @@ namespace IFSExplorer
                 return;
             }
 
-            if (updownIndexSelect.Value == 0) {
+            if (fileIndex.Texture != null) {
+                updownIndexSelect.Maximum = 0;
+                updownIndexSelect.Value = 0;
+            } else if (updownIndexSelect.Value == 0) {
                 updownIndexSelect.Maximum = _currentRaw.IndexSize - 1;
 
                 int indexGuess;
@@ -224,13 +225,21 @@ namespace IFSExplorer
             }
 
             var index = (int) updownIndexSelect.Value;
-            _indexGuesses[_currentRaw.RawLength] = index;
+            if (fileIndex.Texture == null) {
+                _indexGuesses[_currentRaw.RawLength] = index;
+            }
 
             var size = _currentRaw.GetSize(index);
 
-            labelStatus.Text = string.Format("#{0}: {1} bytes decompresses to {2} bytes (index {3} = {4}x{5})",
-                                             fileIndex.EntryNumber,
-                                             fileIndex.Size, _currentRaw.RawLength, index, size.X, size.Y);
+            if (fileIndex.Texture == null) {
+                labelStatus.Text = string.Format("#{0}: {1} bytes decompresses to {2} bytes (index {3} = {4}x{5})",
+                                                 fileIndex.EntryNumber,
+                                                 fileIndex.Size, _currentRaw.RawLength, index, size.X, size.Y);
+            } else {
+                labelStatus.Text = string.Format("{0}: {1} bytes, {2}, {3}x{4}",
+                                                 fileIndex.Texture.Name, fileIndex.Size,
+                                                 fileIndex.Texture.Format, size.X, size.Y);
+            }
 
             var oldImage = pictureboxPreview.Image;
             pictureboxPreview.Image = DrawToBitmap();
@@ -242,18 +251,7 @@ namespace IFSExplorer
         private Bitmap DrawToBitmap()
         {
             var index = (int) updownIndexSelect.Value;
-            var size = _currentRaw.GetSize(index);
-            var bitmap = new Bitmap(size.X, size.Y, PixelFormat.Format32bppArgb);
-
-            for (var y = 0; y < size.Y; ++y) {
-                for (var x = 0; x < size.X; ++x) {
-                    var argb = _currentRaw.GetARGB(index, x, y);
-                    var color = Color.FromArgb(argb);
-
-                    bitmap.SetPixel(x, y, color);
-                }
-            }
-            return bitmap;
+            return _currentRaw.ToBitmap(index);
         }
 
         private class ImageItem
@@ -267,7 +265,12 @@ namespace IFSExplorer
 
             public override string ToString()
             {
-                return string.Format("#{0} ({1})", FileIndex.EntryNumber, FileIndex.Size);
+                if (FileIndex.Texture != null) {
+                    return string.Format("{0} ({1}, {2}x{3})", FileIndex.Texture.Name,
+                                         FileIndex.Texture.Format,
+                                         FileIndex.Texture.Width, FileIndex.Texture.Height);
+                }
+                return string.Format("{0} ({1} bytes)", FileIndex.FullPath, FileIndex.Size);
             }
 
         }
